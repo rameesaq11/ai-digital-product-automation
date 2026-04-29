@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama_server
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_NUM_PARALLEL=1
+    entrypoint: /bin/sh -c "ollama serve & sleep 5 && ollama pull mistral && ollama pull codeliama && ollama pull nomic-embed-text && wait"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automation_network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: automation
+      POSTGRES_PASSWORD: automation_secure_password_123
+      POSTGRES_DB: product_automation
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U automation"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automation_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automation_network
+
+  celery_worker:
+    build: .
+    container_name: celery_worker
+    command: celery -A orchestration.task_manager worker --loglevel=info --concurrency=2
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://automation:automation_secure_password_123@postgres:5432/product_automation
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - redis
+      - postgres
+      - ollama
+    volumes:
+      - ./:/app
+      - ./outputs:/app/outputs
+    networks:
+      - automation_network
+
+  celery_beat:
+    build: .
+    container_name: celery_beat
+    command: celery -A orchestration.task_manager beat --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://automation:automation_secure_password_123@postgres:5432/product_automation
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - redis
+      - postgres
+      - ollama
+    volumes:
+      - ./:/app
+    networks:
+      - automation_network
+
+  api:
+    build: .
+    container_name: fastapi_server
+    command: uvicorn api.product_api:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://automation:automation_secure_password_123@postgres:5432/product_automation
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - redis
+      - postgres
+      - ollama
+    volumes:
+      - ./:/app
+      - ./outputs:/app/outputs
+    networks:
+      - automation_network
+
+  flower:
+    image: mher/flower:latest
+    container_name: celery_flower
+    command: celery -A orchestration.task_manager flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - celery_worker
+    networks:
+      - automation_network
+
+volumes:
+  ollama_data:
+  postgres_data:
+  redis_data:
+
+networks:
+  automation_network:
+    driver: bridge

@@ -1,0 +1,116 @@
+app:
+  name: AI Digital Product Automation
+  version: 1.0.0
+  environment: development
+
+ollama:
+  enabled: true
+  host: http://ollama
+  port: 11434
+  models:
+    primary: mistral              # mistral, llama2, neural-chat
+    code: codeliama
+    embeddings: nomic-embed-text
+  settings:
+    temperature: 0.7
+    top_p: 0.95
+    num_predict: 2000
+
+database:
+  type: postgresql
+  host: postgres
+  port: 5432
+  name: product_automation
+  user: automation
+  password: automation_secure_password_123
+
+redis:
+  host: redis
+  port: 6379
+  db: 0
+
+celery:
+  broker_url: redis://redis:6379/0
+  result_backend: redis://redis:6379/0
+  worker_concurrency: 2
+
+research:
+  enabled: true
+  search_depth: comprehensive    # quick, standard, comprehensive
+  sources:
+    - google_trends
+    - reddit
+    - product_hunt
+    - news_feeds
+  keywords_to_find: 10
+
+quality:
+  min_uniqueness_score: 0.85
+  max_plagiarism_percentage: 5
+  readability_level: college     # elementary, high-school, college
+  fact_check_enabled: true
+  seo_optimization: true
+
+content:
+  ebook:
+    max_pages: 20
+    sections: 8
+    words_per_section: 1500
+    include_images: true
+    include_case_studies: true
+  
+  digital_asset:
+    types:
+      - step_by_step_plan
+      - template
+      - plug_and_play
+      - mini_tool
+    template_format: xlsx
+  
+  video_course:
+    duration_minutes: 60
+    modules_count: 5
+    resolution: 1080p
+    fps: 30
+    include_captions: true
+    include_background_music: true
+
+design:
+  ebook:
+    primary_color: '#2C3E50'
+    secondary_color: '#E74C3C'
+    accent_color: '#3498DB'
+    font_primary: Helvetica
+    font_secondary: Georgia
+    paper_size: letter
+  
+  branding:
+    include_watermark: false
+    include_qr_code: false
+    company_name: AI Products
+
+processing:
+  parallel_tasks: 2
+  max_retries: 3
+  timeout_seconds: 300
+
+output:
+  directory: ./outputs
+  formats:
+    ebook:
+      - pdf
+    digital_asset:
+      - pdf
+      - xlsx
+      - zip
+    video_course:
+      - mp4
+  
+  cleanup_temp_files: true
+  compress_output: false
+
+logging:
+  level: INFO
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  file: logs/automation.log
+  console: true
